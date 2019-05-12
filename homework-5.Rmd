@@ -1,0 +1,190 @@
+---
+title: "Homework 5"
+author: "Marc Mendez & Joel Cantero"
+date: "5 de mayo de 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+First of all, we are going to install and load all the libraries we need for this exercise.
+
+```{r installing-packages, echo=false}
+packages <- c("randomForest", "rattle", "DMwR", "mice", "rpart","ROCR", "RColorBrewer", "VIM", "ggplot2", "readxl", "RGtk2")
+
+for (package in packages) {
+    if(!require(package,  character.only=TRUE)){
+        install.packages(package, repos="http://cran.rstudio.com")
+        library(package,  character.only=TRUE)
+    } 
+}
+
+
+```
+
+## 1. Read the Audit.xlsx file and convert it to the csv extension.
+
+Once we have loaded and installed all the packages, we are going to load the excel file. Also, we are going to convert Employment. Education, Marital, Occupation, Gender, Accounts and Adjusted attributes to factors. Then, we will convert it to CSV file thanks to write.csv2 function.
+
+```{r load-excel, echo=FALSE}
+audit <- read_excel("audit.xlsx", na = "NA")
+
+factors <- c("Employment", "Education", "Marital", "Occupation", "Gender", "Accounts", "Adjusted")
+
+for (fac in factors) {
+  audit[fac] <- lapply(audit[fac], factor)
+
+}
+
+write.csv2(audit, "audit.csv")
+```
+
+
+## 2. The goal is to use a decision tree to predict the binary "Adjusted" variable, whether the individuals had made a correct financial statement or not. Decide which predictors you would use and eventually preprocess these variables.
+
+First of all, we have to remove these attributes that will not help us for splitting the tree. We can observe that "ID", "Deductions" and "Adjusted" are related to statement made and we do not need them. After that, we will imput missing values with MICE function. We have found 244 missing values and we have decided to use MICE because it is a small percentatge of all our instances.
+
+```{r deciding-predictors, echo=FALSE}
+audit = subset(audit, select = -c(ID, Deductions, Adjustment))
+sum(is.na(audit)) # We found 244 missing values.
+
+res <- mice(audit,  m = 1, method="cart")
+imputedAudit <- complete(res, 1)
+
+sum(is.na(imputedAudit)) # Now is 0.
+```
+
+## 3. Select the 1/3 of the last observations as test data.
+
+We have to select the last 33% of data instances as test, and the first 66% instances as training data. 
+
+```{r selecting-data, echo=FALSE}
+test <- imputedAudit[seq(0.66*nrow(audit), nrow(audit)), ]
+training <- imputedAudit[-seq(0.66*nrow(audit), nrow(audit)), ]
+```
+
+## 4. Obtain the decision tree to predict whether the variable "Adjusted" on the training data. Decide the cutoff value for taking the decision.
+
+```{r obtain-decision-tree, echo=FALSE}
+rattle()
+rt = rpart(formula = Adjusted ~ .,
+           data = training,
+           method="class",
+           control = rpart.control(xval = 10,
+                                   cp = 0.001))
+printcp(rt)
+cutoffIdx = 1
+minVal = 20         # 20, could be whatever, its just a control val
+cptab = as.data.frame(rt$cptable)
+for (i in seq(1, nrow(cptab))) {
+    row = cptab[i, ]
+    tmpSum = row$xerror + row$xstd
+    if(tmpSum <= minVal) {
+        minVal = tmpSum
+        cutoffIdx = i
+    }
+}
+cat("Cutoff idx: ", cutoffIdx , " With min value: ", minVal)
+
+```
+
+## 5. Plot the importance of variables in the prediction.
+
+
+```{r importance-variables, echo=FALSE}
+imp = rt$variable.importance
+barplot(imp, col = "red", las=2)
+```
+
+As we can see in this plot, the three most important variables are: marital, occupation and income. 
+
+## 6. Compute the accuracy, precision, recall and AUC on the test individuals.
+
+```{r accuracy-precision, echo=FALSE}
+prediction <- predict(rt, test, type="class")
+(results <- table(test$Adjusted, prediction))
+
+# Accuracy
+error <- (results[1,2] + results[2,1])/nrow(test) 
+(accuracy <- 1 -  error) # 80.17
+cat("Accuracy decision tree: ", accuracy)
+
+# Precision 
+precision_p <- results[1,1]/(results[1,1] + results[2,1])
+precision_n <- results[2,2]/(results[1,2] + results[2,2])
+(precision <- (precision_n + precision_p)/2) # 0.7018 Precision
+cat("Precision decision tree: ", precision)
+
+# Recall
+(recall <- results[1,1]/(results[1,1] + results[1,2])) # Recall 0.8934
+cat("Recall decision tree: ", recall)
+
+# ROC (auc)
+prd<- as.data.frame(predict(rt, test)) # Not sure why i have to calcualte predict again and cant use it with previous data...
+roc_prediction <- prediction(prd$`1`, test$Adjusted)
+roc <- performance(roc_prediction,measure="tpr",x.measure="fpr")
+
+plot(roc, main="ROC curve")
+abline(0,1,col="blue")
+
+(auc <- performance(roc_prediction,"auc"))
+
+
+```
+
+Accuracy: 0.8017
+Precision: 0.7018
+Recall: 0.8934
+AUC: 0.8373
+
+## 7. Perform a Random Forest on the same data.
+
+As we did previously, we have to build the model and then test the results with the test data (the same split as we have used before, if we want to compare it).
+
+The goal of this exercise is to compare the previous results with a random forest. For this reason, we will calculate again the accuracy, precision, recall and AUC.
+
+```{r random-forest, echo=FALSE}
+randomForest <- randomForest(formula = Adjusted ~ .,
+             data=training,
+             importance=TRUE)
+print(randomForest)
+predictRandomForest <- predict(randomForest, test)
+
+print(predictRandomForest)
+plot(predictRandomForest)
+
+(results <- table(test$Adjusted, predictRandomForest))
+
+# Accuracy
+error <- (results[1,2] + results[2,1])/nrow(test) 
+(accuracy <- 1 -  error) # 82.96 accuracy
+
+# Precision 
+precision_p <- results[1,1]/(results[1,1] + results[2,1])
+precision_n <- results[2,2]/(results[1,2] + results[2,2])
+(precision <- (precision_n + precision_p)/2) 
+
+# Recall
+(recall <- results[1,1]/(results[1,1] + results[1,2]))
+
+# ROC
+
+rf_roc <- predict(randomForest, test, type="prob")[,2]
+rf_roc_prediction <- prediction(rf_roc, test$Adjusted)
+rf_roc_perf <- performance(rf_roc_prediction, "tpr", "fpr")
+
+plot(rf_roc_perf, main="ROC curve")
+abline(0,1,col="blue")
+
+(auc <- performance(rf_roc_prediction,"auc"))
+
+```
+Accuracy: 0.8296
+Precision: 0.747
+Recall: 0.8934
+AUC: 0.8532
+
+To conclude, we can say that all the metrics have been improved using a random forest just using 500 trees (we can see that if we print randomForest variable). If we just use one decision tree (the previous exercise) against a random forest, we can observe that the results are not good as random forest ones. 
