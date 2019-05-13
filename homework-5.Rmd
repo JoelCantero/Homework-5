@@ -51,9 +51,8 @@ md.pattern(audit)
 res <- mice(audit,  m = 1, method="cart")
 imputedAudit <- complete(res, 1)
 sum(is.na(imputedAudit)) # Now is 0.
-md.pattern(imputedAudit)
+#md.pattern(imputedAudit)
 ```
-So we can see that with MICE we solved all the missing values, and now we can proceed with our study.
 
 ## 3. Select the 1/3 of the last observations as test data.
 
@@ -92,10 +91,11 @@ cat("Cutoff idx:", cutoffIdx , " With min value:", minVal)
 cat("CP:", cptab[cutoffIdx,]$CP, " nsplit:", cptab[cutoffIdx, ]$nsplit, "rel error:",cptab[cutoffIdx, ]$`rel error`, "xerror:", cptab[cutoffIdx, ]$xerror, "xstd:", cptab[cutoffIdx, ]$xstd )
 ```
 In our case the cutoff will be on 5 splits.
+
 ## 5. Plot the importance of variables in the prediction.
 
 
-```{r importance-variables, echo=FALSE, out.width="300px", out.height="150px", fig.align="center"}
+```{r importance-variables, echo=FALSE, out.width="200px", out.height="100px", fig.align="center"}
 imp = rt$variable.importance
 barplot(imp, col = "grey", las=2)
 ```
@@ -186,7 +186,7 @@ abline(0,1,col="blue")
 
 
 ```
-
+As we can see the values here are all better than the others except for recall variable  which is slightly lower.
 ```{r accuracy-precision-v4, echo=FALSE, message=FALSE, warning=FALSE}
 auc <- performance(rf_roc_prediction,"auc")
 aucv <- auc@y.values
