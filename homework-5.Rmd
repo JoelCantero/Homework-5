@@ -64,11 +64,9 @@ training <- imputedAudit[-seq(0.66*nrow(imputedAudit), nrow(imputedAudit)), ]
 ```
 
 ## 4. Obtain the decision tree to predict whether the variable "Adjusted" on the training data. Decide the cutoff value for taking the decision.
-
 ```{r obtain-decision-tree, echo=FALSE }
 
-rt = rpart(formula = Adjusted ~ .,
-           data = training,
+rt = rpart(formula = Adjusted ~ ., data = training,
            method="class",
            control = rpart.control(xval = 10,
                                    cp = 0.001))
@@ -90,11 +88,8 @@ If we calculate the cutoff and with the cutoff we look at the table we obtain th
 cat("Cutoff idx:", cutoffIdx , " With min value:", minVal)
 cat("CP:", cptab[cutoffIdx,]$CP, " nsplit:", cptab[cutoffIdx, ]$nsplit, "rel error:",cptab[cutoffIdx, ]$`rel error`, "xerror:", cptab[cutoffIdx, ]$xerror, "xstd:", cptab[cutoffIdx, ]$xstd )
 ```
-In our case the cutoff will be on 5 splits.
 
 ## 5. Plot the importance of variables in the prediction.
-
-
 ```{r importance-variables, echo=FALSE, out.width="200px", out.height="100px", fig.align="center"}
 imp = rt$variable.importance
 barplot(imp, col = "grey", las=2)
@@ -118,7 +113,7 @@ precision <- (precision_n + precision_p)/2
 # Recall
 recall <- results[1,1]/(results[1,1] + results[1,2])
 ```
-
+We are going to perform the ROC curve:
 ```{r accuracy-precision-v2, echo = FALSE, out.width="300px", out.height="150px", fig.align="center"}
 # ROC (auc)
 prd<- as.data.frame(predict(rt, test)) 
@@ -149,7 +144,7 @@ As we did previously, we have to build the model and then test the results with 
 
 The goal of this exercise is to compare the previous results with a random forest. For this reason, we will calculate again the accuracy, precision, recall and AUC.
 
-```{r random-forest, echo=FALSE, message=FALSE, out.width="300px", out.height="150px", fig.align="center"}
+```{r random-forest, echo=FALSE, message=FALSE, out.width="200px", out.height="100px", fig.align="center"}
 randomForest <- randomForest(formula = Adjusted ~ .,
              data=training,
              importance=TRUE)
@@ -186,7 +181,7 @@ abline(0,1,col="blue")
 
 
 ```
-As we can see the values here are all better than the others except for recall variable  which is slightly lower.
+As we can see the values here are all better than the others except for recall variable  which is slightly lower. Even the ROC curve area under the curve is bigger.
 ```{r accuracy-precision-v4, echo=FALSE, message=FALSE, warning=FALSE}
 auc <- performance(rf_roc_prediction,"auc")
 aucv <- auc@y.values
